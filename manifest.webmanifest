@@ -1,0 +1,11 @@
+{
+  "name": "Sales Shadowing Studio",
+  "short_name": "英语跟读",
+  "description": "Brian Tracy 销售演讲双语精听与口语跟读工具",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#070b14",
+  "theme_color": "#0a1020",
+  "lang": "zh-CN",
+  "orientation": "portrait-primary"
+}
