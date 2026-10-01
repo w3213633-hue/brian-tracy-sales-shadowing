@@ -20,15 +20,15 @@
     '.word.word-play-origin { color: #061d24 !important; background: var(--teal) !important; box-shadow: 0 0 0 4px rgba(84,210,200,.2) !important; }\n' +
     '.auto-punctuation { color: currentColor; pointer-events: none; }\n' +
     '.auto-punctuation.sentence-end { margin-right: .16em; }\n' +
-    '.sentence-pair { margin: 0 0 .72rem; }\n' +
-    '.sentence-pair .english { margin: 0 0 .18rem; }\n' +
-    '.sentence-pair .chinese { margin: 0; }\n' +
+    '.sentence-pair { margin: 0 0 .95rem; }\n' +
+    '.sentence-pair .english { margin: 0 0 .28rem; }\n' +
+    '.sentence-pair .chinese { margin: 0; line-height: 1.75; }\n' +
     '.play-from-word-button { margin-left: 8px; border-color: rgba(244,182,77,.35); color: var(--amber); }\n' +
     '@media (max-width: 560px) { .play-from-word-button { display: block; margin: 8px 0 0; width: 100%; } }';
   document.head.appendChild(style);
 
   const hint = document.querySelector('.toolbar-hint');
-  if (hint) hint.textContent = '真实语音逐词同步 · 点单词听美式发音并看释义 · 双击会提前约 0.35 秒播放原音 · 英文句首自动大写 · 中英按句对应 · 拖选内容做语法讲解';
+  if (hint) hint.textContent = '真实语音逐词同步 · 点单词听美式发音并看释义 · 双击会提前约 0.35 秒播放原音 · 英文句首自动大写 · 完整自然译文 · 拖选内容做语法讲解';
 
   function startTime(word) {
     const exact = Number(word.dataset.start);
@@ -122,7 +122,58 @@
     translationReplacements.forEach(([from, to]) => {
       polished = polished.split(from).join(to);
     });
-    return polished.match(/[^。！？，；]+[。！？，；]?/g)?.map((item) => item.trim()).filter(Boolean) || [polished];
+    // Keep commas and semicolons inside the sentence. Splitting at every short
+    // pause made the Chinese look like fragments and often shifted its meaning
+    // onto the wrong English line.
+    return polished.match(/[^。！？]+[。！？]?/g)?.map((item) => item.trim()).filter(Boolean) || [polished];
+  }
+
+  function textWeight(text, language) {
+    if (language === 'zh') {
+      return Math.max(1, (text.match(/[\u3400-\u9fffA-Za-z0-9]/g) || []).length);
+    }
+    return Math.max(1, (text.match(/[A-Za-z0-9']+/g) || []).length);
+  }
+
+  function groupEnglishForChinese(englishGroups, chineseSentences) {
+    if (chineseSentences.length >= englishGroups.length) {
+      return englishGroups.map((nodes, index) => {
+        const start = Math.round(index * chineseSentences.length / englishGroups.length);
+        const end = Math.round((index + 1) * chineseSentences.length / englishGroups.length);
+        return { nodes, chinese: chineseSentences.slice(start, end).join('') };
+      });
+    }
+
+    const englishWeights = englishGroups.map((nodes) => textWeight(nodes.map((node) => node.textContent || '').join(' '), 'en'));
+    const chineseWeights = chineseSentences.map((sentence) => textWeight(sentence, 'zh'));
+    const totalEnglish = englishWeights.reduce((sum, value) => sum + value, 0);
+    const totalChinese = chineseWeights.reduce((sum, value) => sum + value, 0);
+    const rows = [];
+    let englishIndex = 0;
+    let cumulativeChinese = 0;
+
+    chineseSentences.forEach((sentence, chineseIndex) => {
+      cumulativeChinese += chineseWeights[chineseIndex];
+      const targetEnglish = totalEnglish * cumulativeChinese / totalChinese;
+      const nodes = [];
+      let usedEnglish = englishWeights.slice(0, englishIndex).reduce((sum, value) => sum + value, 0);
+      const remainingChinese = chineseSentences.length - chineseIndex - 1;
+
+      while (englishIndex < englishGroups.length) {
+        englishGroups[englishIndex].forEach((node) => nodes.push(node));
+        usedEnglish += englishWeights[englishIndex];
+        englishIndex += 1;
+        const remainingEnglish = englishGroups.length - englishIndex;
+        if (usedEnglish >= targetEnglish && remainingEnglish >= remainingChinese) break;
+      }
+      rows.push({ nodes, chinese: sentence });
+    });
+
+    while (englishIndex < englishGroups.length) {
+      englishGroups[englishIndex].forEach((node) => rows[rows.length - 1].nodes.push(node));
+      englishIndex += 1;
+    }
+    return rows;
   }
 
   function alignBilingualSentences() {
@@ -145,8 +196,9 @@
       if (!englishGroups.length) return;
 
       const chineseSentences = polishChinese(chinese.textContent);
+      const alignedRows = groupEnglishForChinese(englishGroups, chineseSentences);
       const fragment = document.createDocumentFragment();
-      englishGroups.forEach((nodes, index) => {
+      alignedRows.forEach(({ nodes, chinese: translated }) => {
         const row = document.createElement('div');
         row.className = 'sentence-pair';
         const englishLine = document.createElement('p');
@@ -154,11 +206,9 @@
         nodes.forEach((node) => englishLine.appendChild(node));
         row.appendChild(englishLine);
 
-        const start = Math.round(index * chineseSentences.length / englishGroups.length);
-        const end = Math.round((index + 1) * chineseSentences.length / englishGroups.length);
         const chineseLine = document.createElement('p');
         chineseLine.className = 'chinese sentence-chinese';
-        chineseLine.textContent = chineseSentences.slice(start, end).join('');
+        chineseLine.textContent = translated;
         row.appendChild(chineseLine);
         fragment.appendChild(row);
       });
