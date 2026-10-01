@@ -72,6 +72,14 @@
     const word = event.target.closest('.word');
     if (!word) return;
     event.stopImmediatePropagation();
+    if (event.detail >= 2) {
+      event.preventDefault();
+      clearTimeout(clickTimer);
+      suppressClickUntil = performance.now() + 500;
+      window.getSelection()?.removeAllRanges();
+      playFromWord(word);
+      return;
+    }
     if (performance.now() < suppressClickUntil || window.getSelection()?.toString().trim()) return;
     clearTimeout(clickTimer);
     clickTimer = setTimeout(() => runOriginalClick(word), 360);
