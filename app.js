@@ -1,3 +1,5 @@
+import { tokenize, translationRanges } from './translation-layout.mjs?v=full-translation-20261002';
+
 const $ = (selector) => document.querySelector(selector);
 const audio = $('#audio');
 const transcriptEl = $('#transcript');
@@ -9,6 +11,7 @@ const durationEl = $('#duration');
 
 let transcript = [];
 let translations = {};
+let alignedTranslations = {};
 let dictionary = {};
 let wordTimings = [];
 let wordTimeline = [];
@@ -49,10 +52,6 @@ function escapeHtml(value) {
   return value.replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 }
 
-function tokenize(text) {
-  return text.match(/\[[^\]]+\]|[A-Za-z]+(?:['’][A-Za-z]+)*|\d+(?::\d+)?(?:%|th)?|[^\s]/g) || [];
-}
-
 function renderTranscript() {
   transcriptEl.innerHTML = transcript.map((segment, index) => {
     const words = tokenize(segment.text);
@@ -69,11 +68,22 @@ function renderTranscript() {
         html = `<span class="token">${safe}</span>`;
       }
       return `${wordIndex && !/^[,.;:!?%)\]]$/.test(word) ? ' ' : ''}${html}`;
-    }).join('');
+    });
     const chinese = translations[String(segment.start)] || '翻译正在整理中。';
+    let copy = `<p class="english">${wordHtml.join('')}</p><p class="chinese">${escapeHtml(chinese)}</p>`;
+    const rows = alignedTranslations[String(segment.start)];
+    if (rows) {
+      try {
+        copy = translationRanges(segment.text, rows).map(row =>
+          `<div class="sentence-pair"><p class="english sentence-english">${wordHtml.slice(row.start, row.end).join('')}</p><p class="chinese sentence-chinese">${escapeHtml(row.chinese)}</p>${row.note ? `<p class="chinese translation-note">语境提示：${escapeHtml(row.note)}</p>` : ''}</div>`
+        ).join('');
+      } catch (error) {
+        console.error('Bilingual alignment failed', segment.start, error);
+      }
+    }
     return `<article class="segment" id="segment-${index}" data-index="${index}">
       <button class="timestamp" type="button" data-seek="${segment.start}" aria-label="跳转到 ${formatTime(segment.start)}">${formatTime(segment.start)}</button>
-      <div class="segment-copy"><p class="english">${wordHtml}</p><p class="chinese">${escapeHtml(chinese)}</p></div>
+      <div class="segment-copy sentence-aligned">${copy}</div>
     </article>`;
   }).join('');
   wordTimeline = [...transcriptEl.querySelectorAll('.word[data-start]')].map((element) => ({
@@ -405,12 +415,14 @@ async function init() {
       translations = window.EMBEDDED_DATA.translations || {};
       dictionary = window.EMBEDDED_DATA.dictionary || {};
       wordTimings = window.EMBEDDED_DATA.wordTimings || [];
+      alignedTranslations = window.EMBEDDED_DATA.alignedTranslations || {};
     } else {
-      const [transcriptResponse, translationsResponse, dictionaryResponse, timingsResponse] = await Promise.all([fetch('./data/transcript.json'), fetch('./data/translations.full.json'), fetch('./data/dictionary.json'), fetch('./data/word-timings.json')]);
+      const [transcriptResponse, translationsResponse, dictionaryResponse, timingsResponse, alignedResponse] = await Promise.all([fetch('./data/transcript.json'), fetch('./data/translations.full.json?v=full-translation-20261002'), fetch('./data/dictionary.json'), fetch('./data/word-timings.json'), fetch('./data/translations.aligned.json?v=full-translation-20261002')]);
       transcript = await transcriptResponse.json();
       translations = translationsResponse.ok ? await translationsResponse.json() : {};
       dictionary = dictionaryResponse.ok ? await dictionaryResponse.json() : {};
       wordTimings = timingsResponse.ok ? await timingsResponse.json() : [];
+      alignedTranslations = alignedResponse.ok ? await alignedResponse.json() : {};
     }
   } catch {
     transcript = [{ start: 5, end: 42, text: 'Thank you. Thank you for being here. Thank you for coming so far and making such a sacrifice.' }];

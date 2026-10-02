@@ -23,6 +23,7 @@
     '.sentence-pair { margin: 0 0 .95rem; }\n' +
     '.sentence-pair .english { margin: 0 0 .28rem; }\n' +
     '.sentence-pair .chinese { margin: 0; line-height: 1.75; }\n' +
+    '.sentence-pair .translation-note { margin-top: .35rem; padding-left: .65rem; border-left: 2px solid var(--teal); font-size: .82rem; }\n' +
     '.play-from-word-button { margin-left: 8px; border-color: rgba(244,182,77,.35); color: var(--amber); }\n' +
     '@media (max-width: 560px) { .play-from-word-button { display: block; margin: 8px 0 0; width: 100%; } }';
   document.head.appendChild(style);
@@ -84,20 +85,6 @@
     word.insertAdjacentElement('afterend', punctuation);
   }
 
-  const translationReplacements = [
-    ['作出这么大的付出', '投入这么多时间和精力'],
-    ['翻了一倍甚至两倍', '提高到原来的两倍甚至三倍'],
-    ['根基稳固的竞争对手', '已经站稳脚跟的竞争对手'],
-    ['叭叭叭式销售', '喋喋不休式销售'],
-    ['找到正确的人', '接触真正合适、有决策资格的人'],
-    ['遭拒绝的工作', '不断面对拒绝的工作'],
-    ['接触不完', '不可能全部接触完'],
-    ['自动控制式制导机制', '自动反馈校正机制'],
-    ['高质量关系', '高质量的人际关系'],
-    ['先行因素或过去发生的事情', '先行因素，也就是过去发生的事情'],
-    ['停止说话时', '说完时'],
-    ['作出购买决定', '形成购买决定']
-  ];
 
   function capitalizeSentenceStarts() {
     let sentenceStart = true;
@@ -115,107 +102,14 @@
       }
       sentenceStart = false;
     });
-  }
-
-  function polishChinese(text) {
-    let polished = text.trim();
-    translationReplacements.forEach(([from, to]) => {
-      polished = polished.split(from).join(to);
-    });
-    // Keep commas and semicolons inside the sentence. Splitting at every short
-    // pause made the Chinese look like fragments and often shifted its meaning
-    // onto the wrong English line.
-    return polished.match(/[^。！？]+[。！？]?/g)?.map((item) => item.trim()).filter(Boolean) || [polished];
-  }
-
-  function textWeight(text, language) {
-    if (language === 'zh') {
-      return Math.max(1, (text.match(/[\u3400-\u9fffA-Za-z0-9]/g) || []).length);
-    }
-    return Math.max(1, (text.match(/[A-Za-z0-9']+/g) || []).length);
-  }
-
-  function groupEnglishForChinese(englishGroups, chineseSentences) {
-    if (chineseSentences.length >= englishGroups.length) {
-      return englishGroups.map((nodes, index) => {
-        const start = Math.round(index * chineseSentences.length / englishGroups.length);
-        const end = Math.round((index + 1) * chineseSentences.length / englishGroups.length);
-        return { nodes, chinese: chineseSentences.slice(start, end).join('') };
-      });
-    }
-
-    const englishWeights = englishGroups.map((nodes) => textWeight(nodes.map((node) => node.textContent || '').join(' '), 'en'));
-    const chineseWeights = chineseSentences.map((sentence) => textWeight(sentence, 'zh'));
-    const totalEnglish = englishWeights.reduce((sum, value) => sum + value, 0);
-    const totalChinese = chineseWeights.reduce((sum, value) => sum + value, 0);
-    const rows = [];
-    let englishIndex = 0;
-    let cumulativeChinese = 0;
-
-    chineseSentences.forEach((sentence, chineseIndex) => {
-      cumulativeChinese += chineseWeights[chineseIndex];
-      const targetEnglish = totalEnglish * cumulativeChinese / totalChinese;
-      const nodes = [];
-      let usedEnglish = englishWeights.slice(0, englishIndex).reduce((sum, value) => sum + value, 0);
-      const remainingChinese = chineseSentences.length - chineseIndex - 1;
-
-      while (englishIndex < englishGroups.length) {
-        englishGroups[englishIndex].forEach((node) => nodes.push(node));
-        usedEnglish += englishWeights[englishIndex];
-        englishIndex += 1;
-        const remainingEnglish = englishGroups.length - englishIndex;
-        if (usedEnglish >= targetEnglish && remainingEnglish >= remainingChinese) break;
-      }
-      rows.push({ nodes, chinese: sentence });
-    });
-
-    while (englishIndex < englishGroups.length) {
-      englishGroups[englishIndex].forEach((node) => rows[rows.length - 1].nodes.push(node));
-      englishIndex += 1;
-    }
-    return rows;
-  }
-
-  function alignBilingualSentences() {
-    transcript.querySelectorAll('.segment-copy').forEach((copy) => {
-      if (copy.classList.contains('sentence-aligned')) return;
-      const english = copy.querySelector(':scope > .english');
-      const chinese = copy.querySelector(':scope > .chinese');
-      if (!english || !chinese) return;
-
-      const englishGroups = [];
-      let group = [];
-      [...english.childNodes].forEach((node) => {
-        group.push(node);
-        if (node.nodeType === 1 && node.classList.contains('sentence-end')) {
-          englishGroups.push(group);
-          group = [];
-        }
-      });
-      if (group.some((node) => (node.textContent || '').trim())) englishGroups.push(group);
-      if (!englishGroups.length) return;
-
-      const chineseSentences = polishChinese(chinese.textContent);
-      const alignedRows = groupEnglishForChinese(englishGroups, chineseSentences);
-      const fragment = document.createDocumentFragment();
-      alignedRows.forEach(({ nodes, chinese: translated }) => {
-        const row = document.createElement('div');
-        row.className = 'sentence-pair';
-        const englishLine = document.createElement('p');
-        englishLine.className = 'english sentence-english';
-        nodes.forEach((node) => englishLine.appendChild(node));
-        row.appendChild(englishLine);
-
-        const chineseLine = document.createElement('p');
-        chineseLine.className = 'chinese sentence-chinese';
-        chineseLine.textContent = translated;
-        row.appendChild(chineseLine);
-        fragment.appendChild(row);
-      });
-      copy.classList.add('sentence-aligned');
-      copy.replaceChildren(fragment);
+    // Editorial bilingual passages also start on a fresh display line.
+    // Keep the original lookup word and audio timing in data attributes.
+    transcript.querySelectorAll('.sentence-english').forEach((line) => {
+      const first = line.querySelector('.word');
+      if (first) first.textContent = first.textContent.replace(/[A-Za-z]/, letter => letter.toUpperCase());
     });
   }
+
 
   function addSmartPunctuation() {
     transcript.querySelectorAll('.auto-punctuation').forEach((item) => item.remove());
@@ -254,7 +148,6 @@
       if (mark !== ',') sentenceWords = [];
     });
     capitalizeSentenceStarts();
-    alignBilingualSentences();
     return true;
   }
 
