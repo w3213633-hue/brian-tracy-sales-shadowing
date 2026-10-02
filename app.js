@@ -1,4 +1,6 @@
-import { tokenize, translationRanges } from './translation-layout.mjs?v=full-translation-20261002';
+import { tokenize, translationRanges } from './translation-layout.mjs?v=faithful-20261002';
+import { cleanedTranscriptTokens } from './transcript-cleanup.mjs?v=faithful-20261002';
+import { grammarAnalysis, readingGroups } from './grammar-coach.mjs?v=faithful-20261002';
 
 const $ = (selector) => document.querySelector(selector);
 const audio = $('#audio');
@@ -24,6 +26,7 @@ let loopA = null;
 let loopB = null;
 let selectedText = '';
 let selectedSegmentIndex = 0;
+let selectedContexts = [];
 let practiceSeconds = 0;
 let lastTick = 0;
 let syncFrameId = 0;
@@ -55,19 +58,31 @@ function escapeHtml(value) {
 function renderTranscript() {
   transcriptEl.innerHTML = transcript.map((segment, index) => {
     const words = tokenize(segment.text);
+    const displayWords = cleanedTranscriptTokens(segment.start, words);
+    const suppressPunctuationAfter = new Set();
+    for (let i = 0; i < displayWords.length; i += 1) {
+      if (displayWords[i] || !/^[A-Za-z]+(?:['’][A-Za-z]+)*$/.test(words[i])) continue;
+      for (let previous = i - 1; previous >= 0; previous -= 1) {
+        if (!displayWords[previous] || !/^[A-Za-z]+(?:['’][A-Za-z]+)*$/.test(words[previous])) continue;
+        suppressPunctuationAfter.add(previous);
+        break;
+      }
+    }
     let spokenWordIndex = 0;
     const wordHtml = words.map((word, wordIndex) => {
       const clean = /^[A-Za-z]+(?:['’][A-Za-z]+)*$/.test(word);
-      const safe = escapeHtml(word);
+      const displayWord = displayWords[wordIndex];
+      const safe = escapeHtml(displayWord);
       let html;
       if (clean) {
         const timing = wordTimings[index]?.[spokenWordIndex++] || null;
-        const attributes = timing ? ` data-start="${timing[0]}" data-end="${timing[1]}"` : '';
+        if (!displayWord) return '';
+        const attributes = timing ? ` data-start="${timing[0]}" data-end="${timing[1]}"${suppressPunctuationAfter.has(wordIndex) ? ' data-no-pause="true"' : ''}` : '';
         html = `<span class="word" data-segment="${index}" data-word="${safe}"${attributes}>${safe}</span>`;
       } else {
         html = `<span class="token">${safe}</span>`;
       }
-      return `${wordIndex && !/^[,.;:!?%)\]]$/.test(word) ? ' ' : ''}${html}`;
+      return `${wordIndex && !/^[,.;:!?%)\]]$/.test(displayWord) ? ' ' : ''}${html}`;
     });
     const chinese = translations[String(segment.start)] || '翻译正在整理中。';
     let copy = `<p class="english">${wordHtml.join('')}</p><p class="chinese">${escapeHtml(chinese)}</p>`;
@@ -236,72 +251,28 @@ function explainWord(word) {
   $('#speakWordButton').addEventListener('click', () => speak(word));
 }
 
-const auxiliaries = new Set(['am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'can', 'could', 'will', 'would', 'shall', 'should', 'may', 'might', 'must']);
 const functionWords = new Set(['a', 'an', 'the', 'and', 'or', 'but', 'so', 'to', 'of', 'in', 'on', 'at', 'for', 'from', 'with', 'by', 'as', 'that', 'this', 'these', 'those', 'it', 'its', 'i', 'you', 'he', 'she', 'we', 'they', 'my', 'your', 'his', 'her', 'our', 'their']);
-
-function grammarStructure(text) {
-  const words = tokenize(text).filter((word) => /^[A-Za-z]+(?:['’][A-Za-z]+)*$/.test(word));
-  if (!words.length) return '没有识别到完整的英文词组。';
-  const verbIndex = words.findIndex((word) => {
-    const lower = word.toLowerCase();
-    return auxiliaries.has(lower) || /动词/.test(lookupWord(lower).pos || '');
-  });
-  if (verbIndex <= 0) return `这是一个${verbIndex === 0 ? '以动词开头的祈使或省略' : '不含明显谓语的短语'}结构；中心内容是 “${words.slice(0, 8).join(' ')}${words.length > 8 ? '…' : ''}”。`;
-  const subject = words.slice(0, verbIndex).join(' ');
-  const predicate = words.slice(verbIndex).join(' ');
-  return `主语部分：${subject}\n谓语及其补充成分：${predicate}`;
-}
-
-function grammarPoints(text) {
-  const lower = ` ${text.toLowerCase().replace(/’/g, "'")} `;
-  const points = [];
-  const add = (label, detail) => { if (!points.some((item) => item.label === label)) points.push({ label, detail }); };
-  if (/\b(if|unless)\b/.test(lower)) add('条件结构', 'if / unless 引出条件；先判断条件从句，再看主句中的结果或行动。');
-  if (/\b(because|since|as)\b/.test(lower)) add('原因从句', 'because / since / as 用来交代原因，后面接一个完整或省略的从句。');
-  if (/\b(when|while|before|after|until)\b/.test(lower)) add('时间关系', '时间连接词把动作放进先后或同时发生的关系中。');
-  if (/\b(who|which|that)\b/.test(lower)) add('定语或名词从句', 'who / which / that 连接后面的说明内容；要结合前面的名词或动词判断作用。');
-  const modal = lower.match(/\b(can|could|will|would|should|must|may|might|shall)\b/);
-  if (modal) add('情态动词', `${modal[1]} 后接动词原形，表达能力、可能、意愿、建议或必要性。`);
-  if (/\b(have|has|had)\s+(?:\w+\s+){0,2}(been|done|gone|made|taken|given|known|seen|found|\w+ed)\b/.test(lower)) add('完成时', 'have / has / had + 过去分词，把过去的动作与现在或另一个过去时间点联系起来。');
-  if (/\b(am|is|are|was|were|be|been|being)\s+(?:\w+\s+){0,1}\w+ing\b/.test(lower)) add('进行时', 'be + -ing 强调动作正在进行或处于一个持续阶段。');
-  if (/\b(am|is|are|was|were|be|been|being)\s+(?:\w+\s+){0,1}(\w+ed|done|made|given|taken|known|seen)\b/.test(lower)) add('被动语态', 'be + 过去分词把重点放在承受动作的人或事物上。');
-  if (/\bto\s+[a-z]+\b/.test(lower)) add('不定式', 'to + 动词原形常表示目的、计划、结果，或作前面动词的补充。');
-  if (/\b\w+ing\b/.test(lower)) add('-ing 形式', '-ing 可能构成进行时，也可能像名词一样表示一项活动；需看它前面是否有 be。');
-  if (/\b(more|less|better|worse|higher|lower|than|as\s+\w+\s+as)\b/.test(lower)) add('比较结构', '比较级或 than / as…as 用来比较程度、数量或效果。');
-  if (/\b(and|but|or|so)\b/.test(lower)) add('并列连接', 'and / but / or / so 连接并列信息；朗读时可在连接词前后形成意群。');
-  if (/\b(why don't you|would you|could you|how do you mean|let me|have to|want to|need to|going to)\b/.test(lower)) add('常用口语句型', '这是演讲和销售对话中的高频固定搭配，应整体记忆，而不是逐词翻译。');
-  if (/\b(don't|doesn't|didn't|can't|couldn't|won't|wouldn't|isn't|aren't|wasn't|weren't|haven't|hasn't|hadn't)\b/.test(lower)) add('否定缩写', '口语中助动词与 not 经常缩写；重音通常落在否定信息或其后的关键词上。');
-  if (/\b(how|what|why|when|where|who|which)\b/.test(lower)) add('疑问表达', '疑问词先限定所缺的信息，再配合助动词或语序构成问题。');
-  if (!points.length) add('一般陈述', '片段以常见的主语—谓语结构展开，重点观察谓语动词及其后的宾语或补充信息。');
-  return points.slice(0, 6);
-}
 
 function keyWordGlossary(text) {
   const seen = new Set();
   return tokenize(text).filter((word) => /^[A-Za-z]+(?:['’][A-Za-z]+)*$/.test(word)).map((word) => word.toLowerCase()).filter((word) => word.length > 2 && !functionWords.has(word) && !seen.has(word) && seen.add(word)).map((word) => ({ word, meaning: firstMeaning(lookupWord(word)) })).filter((item) => item.meaning).slice(0, 8);
 }
 
-function readingChunks(text) {
-  const normalized = text.replace(/\s+/g, ' ').trim();
-  return normalized.replace(/\s+(and|but|because|so|if|when|while|which|who|although|then)\s+/gi, ' ｜ $1 ').replace(/\s+(to\s+[A-Za-z]+)\s+/g, ' ｜ $1 ');
-}
-
 function explainSelection() {
   if (!selectedText) return;
-  const contextTranslation = translations[String(transcript[selectedSegmentIndex]?.start)] || '';
-  const points = grammarPoints(selectedText);
+  const contexts = selectedContexts.length ? selectedContexts : [{ english: selectedText, chinese: translations[String(transcript[selectedSegmentIndex]?.start)] || '' }];
+  const contextEnglish = contexts.map(item => item.english).join(' ');
+  const points = grammarAnalysis(selectedText, contextEnglish);
   const glossary = keyWordGlossary(selectedText);
-  const sections = [
-    { title: '选中内容', content: `“${selectedText}”` },
-    { title: '句子主干', content: grammarStructure(selectedText) },
-    { title: '语法点', content: points.map((item) => `• ${item.label}：${item.detail}`).join('\n') },
-    { title: '关键词', content: glossary.length ? glossary.map((item) => `${item.word}：${item.meaning}`).join('\n') : '这个片段主要由基础功能词组成，请结合句子主干理解。' },
-    { title: '表达分组', content: readingChunks(selectedText) },
-    { title: '所在段落译文', content: contextTranslation },
-  ];
-  $('#coachTitle').textContent = '本地语法讲解';
+  $('#coachTitle').textContent = '语法与表达讲解';
   $('#coachContent').className = 'coach-content';
-  $('#coachContent').innerHTML = sections.map((section) => `<div class="coach-section"><h3>${escapeHtml(section.title)}</h3><p>${escapeHtml(section.content)}</p></div>`).join('') + '<p class="local-note">基于本地词典与语法规则生成，不需要联网或密钥。</p>';
+  $('#coachContent').innerHTML = `
+    <div class="coach-section grammar-selected"><h3>你选中的内容</h3><p class="grammar-quote">${escapeHtml(selectedText)}</p></div>
+    ${contexts.map((item, index) => `<div class="coach-section grammar-context"><h3>${contexts.length > 1 ? `完整句 ${index + 1}` : '所在完整句'}</h3><p class="grammar-english">${escapeHtml(item.english)}</p><h4>严格对照翻译</h4><p>${escapeHtml(item.chinese)}</p></div>`).join('')}
+    <div class="coach-section"><h3>按意群理解</h3><p class="grammar-groups">${escapeHtml(readingGroups(contextEnglish))}</p></div>
+    <div class="coach-section"><h3>重点语法与表达</h3>${points.map((item, index) => `<article class="grammar-point"><h4>${index + 1}. ${escapeHtml(item.title)}</h4><p><span>原句中的部分</span>${escapeHtml(item.focus)}</p><p><span>结构</span>${escapeHtml(item.formula)}</p><p><span>为什么这样用</span>${escapeHtml(item.detail)}</p><p><span>相似例句</span>${escapeHtml(item.example)}</p></article>`).join('')}</div>
+    <div class="coach-section"><h3>关键词</h3>${glossary.length ? `<ul class="meaning-list">${glossary.map(item => `<li><b>${escapeHtml(item.word)}</b>：${escapeHtml(item.meaning)}</li>`).join('')}</ul>` : '<p>选中内容主要由基础功能词组成，请结合上面的结构理解。</p>'}</div>
+    <p class="local-note">讲解资料已经保存在本页，不需要 API 密钥；没有可靠命中的结构不会被强行贴上语法标签。</p>`;
   $('#coachPanel').classList.add('open');
   window.getSelection()?.removeAllRanges();
   $('#selectionAction').classList.add('hidden');
@@ -323,6 +294,15 @@ function updateSelectionAction() {
   }
   selectedText = text;
   selectedSegmentIndex = Number(startContainer?.closest?.('.segment')?.dataset.index ?? activeIndex);
+  selectedContexts = [...document.querySelectorAll('.sentence-pair')]
+    .filter((pair) => {
+      try { return range.intersectsNode(pair); } catch { return false; }
+    })
+    .map((pair) => ({
+      english: pair.querySelector('.sentence-english')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      chinese: pair.querySelector('.sentence-chinese')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    }))
+    .filter((item) => item.english && item.chinese);
   const rect = range.getBoundingClientRect();
   if (!rect.width && !rect.height) return;
   const action = $('#selectionAction');
@@ -417,7 +397,7 @@ async function init() {
       wordTimings = window.EMBEDDED_DATA.wordTimings || [];
       alignedTranslations = window.EMBEDDED_DATA.alignedTranslations || {};
     } else {
-      const [transcriptResponse, translationsResponse, dictionaryResponse, timingsResponse, alignedResponse] = await Promise.all([fetch('./data/transcript.json'), fetch('./data/translations.full.json?v=full-translation-20261002'), fetch('./data/dictionary.json'), fetch('./data/word-timings.json'), fetch('./data/translations.aligned.json?v=full-translation-20261002')]);
+      const [transcriptResponse, translationsResponse, dictionaryResponse, timingsResponse, alignedResponse] = await Promise.all([fetch('./data/transcript.json'), fetch('./data/translations.full.json?v=faithful-20261002'), fetch('./data/dictionary.json'), fetch('./data/word-timings.json'), fetch('./data/translations.aligned.json?v=faithful-20261002')]);
       transcript = await transcriptResponse.json();
       translations = translationsResponse.ok ? await translationsResponse.json() : {};
       dictionary = dictionaryResponse.ok ? await dictionaryResponse.json() : {};

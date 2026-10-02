@@ -29,7 +29,7 @@
   document.head.appendChild(style);
 
   const hint = document.querySelector('.toolbar-hint');
-  if (hint) hint.textContent = '真实语音逐词同步 · 点单词听美式发音并看释义 · 双击会提前约 0.35 秒播放原音 · 英文句首自动大写 · 完整自然译文 · 拖选内容做语法讲解';
+  if (hint) hint.textContent = '真实语音逐词同步 · 点单词听美式发音并看释义 · 双击会提前约 0.35 秒播放原音 · 英文句首自动大写 · 严格对照译文 · 拖选内容看详细语法';
 
   function startTime(word) {
     const exact = Number(word.dataset.start);
@@ -130,6 +130,7 @@
         return;
       }
       if (/[,;:]/.test(existing)) return;
+      if (word.dataset.noPause === 'true') return;
 
       let mark = '';
       if (!next) {

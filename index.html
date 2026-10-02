@@ -26,7 +26,7 @@
       <div class="top-actions">
         <button class="mobile-access-button" id="mobileAccessButton" type="button" aria-label="查看手机使用方式"><span aria-hidden="true">▣</span><span class="mobile-access-text">手机访问</span></button>
         <button class="icon-button" id="shortcutsButton" type="button" aria-label="查看快捷键" title="快捷键">?</button>
-        <span class="offline-badge"><span class="status-dot connected"></span>离线词典 · 本地语法</span>
+        <span class="offline-badge"><span class="status-dot connected"></span>离线词典 · 详细语法</span>
       </div>
     </header>
 
@@ -102,13 +102,13 @@
           <div id="coachContent" class="coach-content empty-coach">
             <div class="coach-orb" aria-hidden="true">Aa</div>
             <p>点击单词可查看发音、音标和独立中文释义。</p>
-            <p>拖选一段英文，会出现“本地语法讲解”按钮。</p>
+            <p>拖选一段英文，会显示完整句、严格对照翻译、结构拆解和相似例句。</p>
           </div>
         </aside>
       </section>
     </main>
 
-    <button id="selectionAction" class="selection-action hidden" type="button">本地语法讲解</button>
+    <button id="selectionAction" class="selection-action hidden" type="button">详细语法讲解</button>
 
     <dialog id="shortcutsDialog">
       <form method="dialog" class="dialog-card compact">
@@ -131,7 +131,7 @@
       </form>
     </dialog>
 
-    <script src="./app.js?v=full-translation-20261002" type="module"></script>
-    <script src="./word-start-play.js?v=full-translation-20261002"></script>
+    <script src="./app.js?v=faithful-20261002" type="module"></script>
+    <script src="./word-start-play.js?v=faithful-20261002"></script>
   </body>
 </html>

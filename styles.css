@@ -116,6 +116,14 @@ button { color: inherit; }
 .local-note { color: var(--muted); font-size: .76rem; }
 
 .selection-action { position: fixed; z-index: 40; border: 1px solid rgba(84, 210, 200, .45); border-radius: 10px; background: #17283b; color: #dffdfa; padding: 9px 13px; font-size: .8rem; font-weight: 700; box-shadow: 0 12px 30px rgba(0,0,0,.35); cursor: pointer; }
+.grammar-quote, .grammar-english { color: #f5f8ff; font-family: Georgia, 'Times New Roman', serif; line-height: 1.65; }
+.grammar-quote { padding: .65rem .75rem; border-left: 3px solid var(--amber); background: rgba(244,182,77,.08); }
+.grammar-context h4, .grammar-point h4 { margin: .7rem 0 .35rem; color: var(--teal); font-size: .86rem; }
+.grammar-groups { color: #dce7f7; line-height: 1.85; word-spacing: .08em; }
+.grammar-point { margin: .85rem 0; padding: .75rem; border: 1px solid rgba(125,153,190,.2); border-radius: 10px; background: rgba(9,20,34,.32); }
+.grammar-point:first-of-type { margin-top: .4rem; }
+.grammar-point p { margin: .42rem 0; line-height: 1.65; }
+.grammar-point p span { display: block; margin-bottom: .12rem; color: #8fa9c9; font-size: .7rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 dialog { width: min(480px, calc(100% - 28px)); padding: 0; border: 0; border-radius: 18px; background: transparent; color: var(--text); }
 dialog::backdrop { background: rgba(2, 5, 12, .72); backdrop-filter: blur(5px); }
 .dialog-card { padding: 21px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
