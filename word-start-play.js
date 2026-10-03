@@ -1,12 +1,11 @@
+import { capitalizeEnglish, punctuationMarks } from './punctuation-engine.mjs?v=punctuation-20261003';
+
 (() => {
   const transcript = document.querySelector('#transcript');
   const audio = document.querySelector('#audio');
   if (!transcript || !audio) return;
 
   const WORD_PREROLL_SECONDS = 0.35;
-  const COMMA_PAUSE_SECONDS = 0.32;
-  const SENTENCE_PAUSE_SECONDS = 0.56;
-
   let clickTimer = 0;
   let bypassClick = false;
   let suppressClickUntil = 0;
@@ -59,25 +58,6 @@
     setTimeout(() => word.classList.remove('word-play-origin'), 650);
   }
 
-  function textBetween(current, next) {
-    if (next && current.parentElement !== next.parentElement) return '';
-    let text = '';
-    let node = current.nextSibling;
-    while (node && node !== next) {
-      text += node.textContent || '';
-      node = node.nextSibling;
-    }
-    return text;
-  }
-
-  function looksLikeQuestion(words) {
-    const text = words.filter(Boolean).join(' ');
-    if (!text) return false;
-    if (/^(?:who|what|when|where|why|how|which|whose)\b/.test(text)) return true;
-    if (/^(?:do|does|did|can|could|would|will|is|are|was|were|have|has|had|should|may)\b/.test(text)) return true;
-    return /\b(?:who|what|when|where|why|how|which)\s+(?:do|does|did|can|could|would|will|is|are|was|were|have|has|had)\b/.test(text);
-  }
-
   function insertPunctuation(word, mark) {
     const punctuation = document.createElement('span');
     punctuation.className = 'auto-punctuation' + (mark === ',' ? '' : ' sentence-end');
@@ -88,65 +68,41 @@
 
   function capitalizeSentenceStarts() {
     let sentenceStart = true;
-    const items = transcript.querySelectorAll('.english .word, .english .auto-punctuation');
+    const items = transcript.querySelectorAll('.english .word, .english .token, .english .auto-punctuation');
     items.forEach((item) => {
-      if (item.classList.contains('sentence-end')) {
+      if (item.classList.contains('sentence-end') || (item.classList.contains('token') && /[.!?]/.test(item.textContent || ''))) {
         sentenceStart = true;
         return;
       }
       if (!item.classList.contains('word') || !sentenceStart) return;
-      const text = item.textContent || '';
-      const letterIndex = text.search(/[A-Za-z]/);
-      if (letterIndex >= 0) {
-        item.textContent = text.slice(0, letterIndex) + text.charAt(letterIndex).toUpperCase() + text.slice(letterIndex + 1);
-      }
+      item.textContent = capitalizeEnglish(item.textContent);
       sentenceStart = false;
-    });
-    // Editorial bilingual passages also start on a fresh display line.
-    // Keep the original lookup word and audio timing in data attributes.
-    transcript.querySelectorAll('.sentence-english').forEach((line) => {
-      const first = line.querySelector('.word');
-      if (first) first.textContent = first.textContent.replace(/[A-Za-z]/, letter => letter.toUpperCase());
     });
   }
 
 
   function addSmartPunctuation() {
     transcript.querySelectorAll('.auto-punctuation').forEach((item) => item.remove());
-    const words = [...transcript.querySelectorAll('.english .word[data-start][data-end]')];
-    if (!words.length) return false;
-
-    let sentenceWords = [];
-    words.forEach((word, index) => {
-      const cleanWord = (word.dataset.word || word.textContent || '')
-        .toLowerCase()
-        .replace(/[^a-z']/g, '');
-      if (cleanWord) sentenceWords.push(cleanWord);
-
-      const next = words[index + 1];
-      const existing = textBetween(word, next);
-      if (/[.!?]/.test(existing)) {
-        sentenceWords = [];
-        return;
-      }
-      if (/[,;:]/.test(existing)) return;
-      if (word.dataset.noPause === 'true') return;
-
-      let mark = '';
-      if (!next) {
-        mark = looksLikeQuestion(sentenceWords) ? '?' : '.';
-      } else {
-        const gap = Number(next.dataset.start) - Number(word.dataset.end);
-        if (Number.isFinite(gap) && gap >= SENTENCE_PAUSE_SECONDS) {
-          mark = looksLikeQuestion(sentenceWords) ? '?' : '.';
-        } else if (Number.isFinite(gap) && gap >= COMMA_PAUSE_SECONDS) {
-          mark = ',';
+    const pairs = [...transcript.querySelectorAll('.sentence-pair')];
+    if (!pairs.length) return false;
+    pairs.forEach((pair) => {
+      const elements = [...pair.querySelectorAll('.sentence-english .word[data-start][data-end]')];
+      if (!elements.length) return;
+      const words = elements.map(element => ({
+        text: element.dataset.word || element.textContent || '',
+        start: Number(element.dataset.start),
+        end: Number(element.dataset.end),
+        noPause: element.dataset.noPause === 'true',
+      }));
+      const chinese = pair.querySelector('.sentence-chinese')?.textContent || '';
+      punctuationMarks(words, chinese).forEach((mark, index) => {
+        let anchor = elements[index];
+        if (index === elements.length - 1) {
+          const finalToken = pair.querySelector('.sentence-english')?.lastElementChild;
+          if (finalToken) anchor = finalToken;
         }
-      }
-
-      if (!mark) return;
-      insertPunctuation(word, mark);
-      if (mark !== ',') sentenceWords = [];
+        insertPunctuation(anchor, mark);
+      });
     });
     capitalizeSentenceStarts();
     return true;
