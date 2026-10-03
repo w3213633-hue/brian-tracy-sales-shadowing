@@ -14,6 +14,31 @@ let rowCount = 0;
 let sentenceMarks = 0;
 let commaMarks = 0;
 
+const grammarSample = 'So the average person when they have a problem complains and blames other people about the problem'.split(' ')
+  .map((text, index) => ({ text, start: index, end: index + 0.4, noPause: false }));
+const grammarMarks = punctuationMarks(grammarSample, '普通人遇到问题时，往往会抱怨这个问题，把责任推到别人身上。');
+assert.equal(grammarMarks.get(3), ',', 'Missing comma before embedded when-clause');
+assert.equal(grammarMarks.get(8), ',', 'Missing comma after embedded when-clause');
+assert.equal(grammarMarks.get(grammarSample.length - 1), '.', 'Missing final period');
+
+const imperativeSample = 'So when they finish speaking pause and let them think and maybe they want to continue'.split(' ')
+  .map((text, index) => ({ text, start: index, end: index + 0.4, noPause: false }));
+const imperativeMarks = punctuationMarks(imperativeSample, '所以，当他们说完后，先停一下，让他们想一想，也许他们还想继续说。');
+assert.equal(imperativeMarks.get(4), ',', 'Missing comma after fronted when-clause');
+assert.notEqual(imperativeMarks.get(10), ',', 'Incorrect comma after maybe');
+
+const restrictiveSample = 'IBM did a study when they got into trouble in the 90s and they paid three million dollars'.split(' ')
+  .map((text, index) => ({ text, start: index, end: index + 0.4, noPause: false }));
+const restrictiveMarks = punctuationMarks(restrictiveSample, 'IBM在90年代陷入困境时做了一项研究，并支付了三百万美元。');
+assert.notEqual(restrictiveMarks.get(3), ',', 'Restrictive when-clause should not get an opening comma');
+assert.notEqual(restrictiveMarks.get(12), ',', 'Comma must not be placed after and');
+
+const repeatedSubjectSample = 'Every salesperson when they went in to see a prospect they would click on the stopwatch'.split(' ')
+  .map((text, index) => ({ text, start: index, end: index + 0.4, noPause: false }));
+const repeatedSubjectMarks = punctuationMarks(repeatedSubjectSample, '每个销售人员去见潜在客户时，都会按下秒表。');
+assert.equal(repeatedSubjectMarks.get(1), ',', 'Missing comma before embedded when-clause');
+assert.equal(repeatedSubjectMarks.get(9), ',', 'Missing comma after embedded when-clause');
+
 for (const [segmentIndex, segment] of transcript.entries()) {
   const tokens = tokenize(segment.text);
   const display = cleanedTranscriptTokens(segment.start, tokens);

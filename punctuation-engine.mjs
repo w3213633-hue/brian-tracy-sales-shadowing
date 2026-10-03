@@ -79,6 +79,69 @@ function earlyQuestionBoundary(words, chinese) {
   return best;
 }
 
+function addWhenClauseCommas(words, marks) {
+  const noOpeningCommaAfter = new Set(['and', 'but', 'so', 'because', 'whereas', 'is', 'was', 'are', 'were']);
+  const mainVerbCues = new Set(['complains', 'blames', 'starts', 'stops', 'changes', 'transforms', 'works', 'takes', 'makes', 'means']);
+  const imperativeCues = new Set(['ask', 'allow', 'go', 'let', 'listen', 'pause', 'remember', 'say', 'start', 'stop', 'think', 'write']);
+  const finiteBeforeCues = new Set([
+    'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'have', 'has', 'had', 'do', 'does', 'did',
+    'say', 'says', 'said', 'ask', 'asks', 'asked',
+    'remember', 'remembers', 'remembered', 'treat', 'treats', 'treated',
+    'work', 'works', 'worked', 'start', 'starts', 'started',
+    'learn', 'learns', 'learned', 'hear', 'hears', 'heard',
+    'think', 'thinks', 'thought', 'go', 'goes', 'went',
+    'come', 'comes', 'came', 'make', 'makes', 'made',
+    'take', 'takes', 'took', 'get', 'gets', 'got',
+    'sell', 'sells', 'sold', 'buy', 'buys', 'bought',
+    'pay', 'pays', 'paid', 'call', 'calls', 'called'
+  ]);
+  for (let whenIndex = 1; whenIndex < words.length - 4; whenIndex += 1) {
+    if (plainWord(words[whenIndex]?.text) !== 'when') continue;
+    const subject = plainWord(words[whenIndex + 1]?.text);
+    if (!['i', 'we', 'you', 'he', 'she', 'they', 'it'].includes(subject)) continue;
+
+    let end = -1;
+    for (let index = whenIndex + 3; index <= Math.min(words.length - 2, whenIndex + 14); index += 1) {
+      const current = plainWord(words[index]?.text);
+      const previous = plainWord(words[index - 1]?.text);
+      if (current === subject) {
+        if (previous === 'maybe') continue;
+        end = ['and', 'but', 'or', 'so'].includes(previous) ? index - 2 : index - 1;
+        break;
+      }
+      if (imperativeCues.has(current)) {
+        end = index - 1;
+        break;
+      }
+      if (['i', 'we', 'you', 'he', 'she', 'they', 'it'].includes(current)
+        && mainVerbCues.has(plainWord(words[index + 1]?.text))) {
+        end = index - 1;
+        break;
+      }
+    }
+    const subordinateVerb = plainWord(words[whenIndex + 2]?.text);
+    if (end < 0 && ['have', 'has', 'had'].includes(subordinateVerb)) {
+      for (let index = whenIndex + 4; index < Math.min(words.length - 1, whenIndex + 10); index += 1) {
+        if (mainVerbCues.has(plainWord(words[index + 1]?.text))) {
+          end = index;
+          break;
+        }
+      }
+    }
+    if (end < 0) continue;
+
+    marks.set(end, ',');
+    const beforeWhen = whenIndex - 1;
+    const preceding = plainWord(words[beforeWhen]?.text);
+    const previousSentenceEnd = [...marks.keys()].filter(index => index < beforeWhen && /[.!?]/.test(marks.get(index))).sort((a, b) => b - a)[0] ?? -1;
+    const localClauseStart = Math.max(previousSentenceEnd + 1, whenIndex - 3);
+    const precedingClause = words.slice(localClauseStart, whenIndex).map(word => plainWord(word.text));
+    const hasFiniteVerbBeforeWhen = precedingClause.some(word => finiteBeforeCues.has(word));
+    if (!noOpeningCommaAfter.has(preceding) && !hasFiniteVerbBeforeWhen && beforeWhen - previousSentenceEnd >= 2) marks.set(beforeWhen, ',');
+  }
+}
+
 export function punctuationMarks(words, chinese) {
   const marks = new Map();
   if (!words.length) return marks;
@@ -150,6 +213,8 @@ export function punctuationMarks(words, chinese) {
       marks.set(boundary, introducesQuestion ? ':' : looksLikeQuestion(words.slice(prior + 1, boundary + 1)) ? '?' : '.');
     });
   }
+
+  addWhenClauseCommas(words, marks);
 
   let lastMark = -1;
   for (let index = 0; index < words.length - 1; index += 1) {
