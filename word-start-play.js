@@ -1,4 +1,4 @@
-import { capitalizeEnglish, punctuationMarks } from './punctuation-engine.mjs?v=punctuation-20261003';
+import { capitalizeEnglish, punctuationMarks } from './punctuation-engine.mjs?v=when-clause-20261003';
 
 (() => {
   const transcript = document.querySelector('#transcript');
