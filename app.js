@@ -1,5 +1,5 @@
 import { tokenize, translationRanges } from './translation-layout.mjs?v=faithful-20261002';
-import { cleanedTranscriptTokens } from './transcript-cleanup.mjs?v=faithful-20261002';
+import { cleanedTranscriptTokens } from './transcript-cleanup.mjs?v=full-audit2-20261003';
 import { grammarAnalysis, readingGroups } from './grammar-coach.mjs?v=faithful-20261002';
 
 const $ = (selector) => document.querySelector(selector);
@@ -82,7 +82,8 @@ function renderTranscript() {
       } else {
         html = `<span class="token">${safe}</span>`;
       }
-      return `${wordIndex && !/^[,.;:!?%)\]]$/.test(displayWord) ? ' ' : ''}${html}`;
+      const compactContinuation = (displayWords[wordIndex - 1] === ',' && /^\d+$/.test(displayWord)) || displayWords[wordIndex - 1] === '$';
+      return `${wordIndex && !/^[,.;:!?%)\]]$/.test(displayWord) && !compactContinuation ? ' ' : ''}${html}`;
     });
     const chinese = translations[String(segment.start)] || '翻译正在整理中。';
     let copy = `<p class="english">${wordHtml.join('')}</p><p class="chinese">${escapeHtml(chinese)}</p>`;

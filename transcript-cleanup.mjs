@@ -7,23 +7,36 @@ const fixes = {
     [["farmers's"], ["farmer's"]],
     [["would", "could", "no", "longer"], ["", "could", "no", "longer"]],
   ],
-  323: [[["he", "was", "had", "no"], ["he", "", "had", "no"]]],
+  323: [
+    [["he", "was", "had", "no"], ["he", "", "had", "no"]],
+    [["5", ":", "and"], ["5", "", "and"]],
+  ],
   425: [[["the", "Seven", "step"], ["the", "seventh", "step"]]],
-  146: [[["hitting", "something", "W", "you"], ["hitting", "something", "when", "you"]]],
+  146: [
+    [["hitting", "something", "W", "you"], ["hitting", "something", "when", "you"]],
+    [["is", "we", "fall"], ["", "we", "fall"]],
+  ],
   457: [[["then", "would", "actually", "started"], ["then", "I", "actually", "started"]]],
   489: [[["took", "no", "action", "is", "they"], ["took", "no", "action", "", "they"]]],
-  593: [[["they", "think", "about", "they", "want"], ["they", "think", "about", "what they", "want"]]],
+  593: [
+    [["they", "think", "about", "they", "want"], ["they", "think", "about", "what they", "want"]],
+    [["Never", "it", "never"], ["", "it", "never"]],
+  ],
   629: [[["Have", "have", "a", "natural"], ["", "have", "a", "natural"]]],
   666: [[["the", "way", "reason", "the", "way", "that"], ["the", "way", "", "", "", "that"]]],
   700: [[["only", "only", "three"], ["", "only", "three"]]],
   764: [[["year", "after", "after", "year"], ["year", "", "after", "year"]]],
   866: [[["seminar", "I", "I", "introduced"], ["seminar", "", "I", "introduced"]]],
+  833: [[["we", "adjusting", "to", "that"], ["we're", "adjusting", "to", "that"]]],
   899: [[["they", "'", "spent"], ["they'd", "", "spent"]]],
   1166: [
     [["sales", "man", "manager"], ["sales", "", "manager"]],
     [["maybe", "he", "taken"], ["maybe", "he'd", "taken"]],
   ],
-  1197: [[["with", "c", "customers"], ["with", "", "customers"]]],
+  1197: [
+    [["with", "c", "customers"], ["with", "", "customers"]],
+    [["customers", "'", "you"], ["customers", "", "you"]],
+  ],
   1487: [[["start", "dying"], ["start", "dialing"]]],
   1805: [[["I", "see", "I", "coming", "here"], ["I", "see", "", "coming", "here"]]],
   1869: [[["Rapport", "and", "Trust", "TR", "by"], ["Rapport", "and", "Trust", "", "by"]]],
@@ -42,6 +55,7 @@ const fixes = {
   ],
   2712: [[["this", "they", "IBM", "did"], ["this", "", "IBM", "did"]]],
   2747: [[["saidwell"], ["said—well"]]],
+  2814: [[["w"], [""]]],
 };
 
 export function cleanedTranscriptTokens(start, tokens) {
