@@ -1,5 +1,5 @@
 import { capitalizeEnglish, punctuationMarks } from './punctuation-engine.mjs?v=when-clause-20261003';
-import { EDITORIAL_BOUNDARIES, EDITORIAL_COMMA_REMOVALS, finalEnglishMark } from './editorial-punctuation.mjs?v=full-audit2-20261003';
+import { EDITORIAL_BOUNDARIES, EDITORIAL_COMMA_REMOVALS, finalEnglishMark } from './editorial-punctuation.mjs?v=readable-sentences3-20261004';
 
 (() => {
   const transcript = document.querySelector('#transcript');
@@ -63,7 +63,11 @@ import { EDITORIAL_BOUNDARIES, EDITORIAL_COMMA_REMOVALS, finalEnglishMark } from
     const punctuation = document.createElement('span');
     punctuation.className = 'auto-punctuation' + (/[.!?]/.test(mark) ? ' sentence-end' : '');
     punctuation.textContent = mark;
-    word.insertAdjacentElement('afterend', punctuation);
+    const suffix = word.nextElementSibling;
+    const anchor = /[.!?]/.test(mark) && suffix?.classList.contains('token') && /^\s*[%）)】\]]/.test(suffix.textContent || '')
+      ? suffix
+      : word;
+    anchor.insertAdjacentElement('afterend', punctuation);
   }
 
   const properWords = new Set([
